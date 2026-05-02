@@ -2,7 +2,7 @@ name: Daily Database Backup
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * *'     # Каждый день в 3:00 UTC
   workflow_dispatch:
 
 jobs:
@@ -13,20 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Install PostgreSQL 18 client
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y curl gnupg2
-          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg
-          echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-18
-
-      - name: Create Backup
+      - name: Create Backup using Docker
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
-          pg_dump -v "${{ secrets.DATABASE_URL }}" > backup_$(date +%Y-%m-%d_%H-%M).sql
+          docker run --rm \
+            -e PGPASSWORD=$(echo $DATABASE_URL | cut -d':' -f3 | cut -d'@' -f1) \
+            postgres:18 \
+            pg_dump "$DATABASE_URL" > backup_$(date +%Y-%m-%d_%H-%M).sql
 
       - name: Upload Backup
         uses: actions/upload-artifact@v4
