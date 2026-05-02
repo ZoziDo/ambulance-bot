@@ -1,0 +1,6 @@
+aiogram[fast]
+sqlalchemy
+asyncpg
+python-dotenv
+pandas
+openpyxl
