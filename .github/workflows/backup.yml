@@ -2,7 +2,7 @@ name: Daily Database Backup
 
 on:
   schedule:
-    - cron: '0 3 * * *'     # Каждый день в 3:00 UTC
+    - cron: '0 3 * * *'
   workflow_dispatch:
 
 jobs:
@@ -13,14 +13,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Create Backup using Docker
+      - name: Dump Database with PostgreSQL 18
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           docker run --rm \
-            -e PGPASSWORD=$(echo $DATABASE_URL | cut -d':' -f3 | cut -d'@' -f1) \
+            --env PGPASSWORD=$(echo $DATABASE_URL | sed 's/.*:\/\/[^:]*:\([^@]*\)@.*/\1/') \
             postgres:18 \
-            pg_dump "$DATABASE_URL" > backup_$(date +%Y-%m-%d_%H-%M).sql
+            pg_dump "$DATABASE_URL" --no-owner --no-acl > backup_$(date +%Y-%m-%d_%H-%M).sql
 
       - name: Upload Backup
         uses: actions/upload-artifact@v4
