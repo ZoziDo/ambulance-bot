@@ -1,5 +1,5 @@
 aiogram[fast]
-sqlalchemy
+sqlalchemy[asyncio]
 asyncpg
 python-dotenv
 pandas
