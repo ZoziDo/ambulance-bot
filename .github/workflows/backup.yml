@@ -1,0 +1,30 @@
+name: Daily Database Backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'      # Каждый день в 3:00 UTC (6:00 по Москве)
+  workflow_dispatch:         # Можно запускать вручную
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Create Backup
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          pg_dump "${{ secrets.DATABASE_URL }}" > backup_$(date +%Y-%m-%d_%H-%M).sql
+
+      - name: Upload Backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: database-backup
+          path: backup_*.sql
+          retention-days: 30
