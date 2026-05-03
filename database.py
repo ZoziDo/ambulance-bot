@@ -22,19 +22,32 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 async def init_db():
-    """Инициализация базы данных"""
+    """Инициализация базы данных + исправление последовательностей"""
     try:
-        # Создаём таблицы
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
             print("✅ Таблицы успешно созданы / обновлены")
 
-        # Проверяем существующие таблицы
+        # === ИСПРАВЛЕНИЕ ПОСЛЕДОВАТЕЛЬНОСТЕЙ ===
+        async with AsyncSessionLocal() as session:
+            # Для таблицы users
+            await session.execute(text("""
+                SELECT setval('users_id_seq', COALESCE((SELECT MAX(id) + 1 FROM users), 1), false);
+            """))
+            # Для таблицы shifts
+            await session.execute(text("""
+                SELECT setval('shifts_id_seq', COALESCE((SELECT MAX(id) + 1 FROM shifts), 1), false);
+            """))
+            await session.commit()
+
+        print("✅ Последовательности (sequences) успешно синхронизированы")
+
+        # Проверяем таблицы
         async with engine.connect() as conn:
             result = await conn.execute(text("SELECT tablename FROM pg_tables WHERE schemaname = 'public';"))
             tables = [row[0] for row in result.fetchall()]
             print(f"📋 Найденные таблицы: {tables}")
 
     except Exception as e:
-        print(f"❌ Ошибка при инициализации базы данных: {e}")
+        print(f"❌ Ошибка при инициализации базы: {e}")
         raise
