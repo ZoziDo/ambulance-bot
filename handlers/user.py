@@ -62,49 +62,45 @@ async def cmd_start(message: Message, state: FSMContext):
 
 
 # ====================== РЕГИСТРАЦИЯ ======================
-# ====================== РЕГИСТРАЦИЯ ======================
 @user_router.message(RegistrationStates.waiting_full_name)
 async def process_full_name(message: Message, state: FSMContext):
-    """Обработка ввода Ф.И.О"""
     if await is_banned(message.from_user.id, message):
         await state.clear()
         return
-   
+    
     full_name = message.text.strip()
-   
     if len(full_name) < 5:
         await message.answer("❌ Пожалуйста, введите Ф.И.О полностью (минимум 5 символов):")
         return
 
-    # Сохраняем Ф.И.О в состояние
     await state.update_data(full_name=full_name)
-    
-    # Переходим к следующему шагу
     await state.set_state(RegistrationStates.waiting_car_number)
-    await message.answer("🚗 Введите номер машины (например: Н337НН142 или А721АА142):")
+    await message.answer("🚗 Введите номер машины:\nПример: Н337НН142 или А721АА142")
 
-    # === ЗАЩИТА ОТ ПОТЕРИ ДАННЫХ ===
-    data = await state.get_data()
-    full_name = data.get('full_name')
 
-    if not full_name:
-        await message.answer(
-            "⚠️ Произошла ошибка: данные Ф.И.О потерялись.\n\n"
-            "Пожалуйста, начните регистрацию заново."
-        )
+@user_router.message(RegistrationStates.waiting_car_number)
+async def process_car_number(message: Message, state: FSMContext):
+    if await is_banned(message.from_user.id, message):
         await state.clear()
-        await state.set_state(RegistrationStates.waiting_full_name)
-        await message.answer("👤 Введите ваше Ф.И.О полностью:")
         return
-    # =================================
 
     car_number = message.text.strip().upper()
 
     if len(car_number) < 4:
-        await message.answer("❌ Номер машины слишком короткий.\nВведите корректный номер машины (например: А123АА142):")
+        await message.answer("❌ Номер машины слишком короткий. Введите корректный номер:")
         return
 
-    # Сохранение данных в базу
+    data = await state.get_data()
+    full_name = data.get('full_name')
+
+    if not full_name:
+        await message.answer("⚠️ Ошибка. Начните регистрацию заново.")
+        await state.clear()
+        await state.set_state(RegistrationStates.waiting_full_name)
+        await message.answer("👤 Введите ваше Ф.И.О полностью:")
+        return
+
+    # Сохраняем данные
     async with AsyncSessionLocal() as session:
         await session.execute(
             update(User)
@@ -113,19 +109,17 @@ async def process_full_name(message: Message, state: FSMContext):
         )
         await session.commit()
 
-    # Кнопка отправки заявки
     kb = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="✅ Я водитель скорой", callback_data="send_request")]
     ])
 
     await message.answer(
-        f"✅ Регистрация успешно завершена!\n\n"
+        f"✅ Регистрация завершена!\n\n"
         f"👤 Ф.И.О: {full_name}\n"
         f"🚗 Машина: {car_number}\n\n"
         "Нажмите кнопку ниже, чтобы отправить заявку на доступ:",
         reply_markup=kb
     )
-
     await state.clear()
 
 
