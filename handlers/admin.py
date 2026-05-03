@@ -30,9 +30,12 @@ async def show_drivers(message: Message):
 
         for u in users:
             status = "🚫" if u.banned else "✅" if u.approved else "⏳"
-            text += f"{status} {u.full_name} — {u.car_number}\n"
+            full_name = u.full_name or "Без имени"
+            
+            text += f"{status} {full_name} — {u.car_number or '—'}\n"
+            
             keyboard.append([InlineKeyboardButton(
-                text=f"{status} {u.full_name[:30]}",
+                text=f"{status} {full_name[:25]}...",  # защита от длинного имени
                 callback_data=f"driver_{u.tg_id}"
             )])
 
