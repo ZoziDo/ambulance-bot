@@ -494,3 +494,52 @@ async def unban_user(callback: CallbackQuery):
         )
     except:
         pass
+
+# ==================== УДАЛЕНИЕ ВОДИТЕЛЯ ====================
+@admin_router.callback_query(F.data.startswith("delete_user_"))
+async def confirm_delete_user(callback: CallbackQuery):
+    tg_id = int(callback.data.split("_")[2])
+
+    async with AsyncSessionLocal() as session:
+        user = await session.get(User, tg_id)
+
+        if not user:
+            await callback.answer("Пользователь не найден")
+            return
+
+        text = f"""⚠️ <b>ПОДТВЕРДИТЕ УДАЛЕНИЕ</b>
+
+Вы уверены, что хотите **полностью удалить** водителя?
+
+👤 {user.full_name}
+🚗 {user.car_number or '—'}
+
+Все его смены тоже будут удалены навсегда."""
+
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"confirm_delete_{tg_id}")],
+            [InlineKeyboardButton(text="❌ Отмена", callback_data=f"driver_{tg_id}")]
+        ])
+
+        await callback.message.edit_text(text, reply_markup=kb, parse_mode="HTML")
+        await callback.answer()
+
+
+@admin_router.callback_query(F.data.startswith("confirm_delete_"))
+async def delete_user(callback: CallbackQuery):
+    tg_id = int(callback.data.split("_")[2])
+
+    async with AsyncSessionLocal() as session:
+        # Удаляем все смены
+        await session.execute(delete(Shift).where(Shift.user_id == tg_id))
+        # Удаляем пользователя
+        await session.execute(delete(User).where(User.tg_id == tg_id))
+        await session.commit()
+
+    try:
+        await callback.bot.send_message(tg_id, "🗑 Вы были полностью удалены из системы бота.")
+    except:
+        pass
+
+    await callback.message.edit_text("✅ Водитель и все его данные успешно удалены.")
+    await callback.answer("Водитель удалён", show_alert=True)
