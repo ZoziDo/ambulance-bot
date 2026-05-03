@@ -52,6 +52,7 @@ async def driver_detail(callback: CallbackQuery):
             await callback.answer("Пользователь не найден")
             return
 
+        # Последние 5 смен
         shifts_result = await session.execute(
             select(Shift)
             .where(Shift.user_id == tg_id)
@@ -76,14 +77,12 @@ async def driver_detail(callback: CallbackQuery):
             [InlineKeyboardButton(text="📊 Статистика водителя", callback_data=f"stat_{tg_id}")],
             [InlineKeyboardButton(text="📅 Смены за текущий месяц", callback_data=f"month_shifts_{tg_id}")],
             [InlineKeyboardButton(text="📋 Все смены", callback_data=f"all_shifts_{tg_id}")],
-            [InlineKeyboardButton(text="🚫 Забанить", callback_data=f"ban_{tg_id}")],
-            [InlineKeyboardButton(text="✅ Разбанить", callback_data=f"unban_{tg_id}")],
-            [InlineKeyboardButton(text="🔙 Назад к списку водителей", callback_data="back_to_drivers")]
+            [InlineKeyboardButton(text="🔧 Действия с водителем", callback_data=f"actions_{tg_id}")],   # ← Новая кнопка
+            [InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")]
         ])
 
         await callback.message.edit_text(text, reply_markup=kb)
         await callback.answer()
-
 
 # ==================== ВСЕ СМЕНЫ ВОДИТЕЛЯ ====================
 @admin_router.callback_query(F.data.startswith("all_shifts_"))
@@ -442,3 +441,33 @@ async def all_shifts_after_delete(message: Message, tg_id: int):
     
     # Вызываем all_shifts с нужными параметрами
     await all_shifts(fake_callback, FSMContext(None, None, None))  # передаём пустой state
+
+# ==================== МЕНЮ ДЕЙСТВИЙ С ВОДИТЕЛЕМ ====================
+@admin_router.callback_query(F.data.startswith("actions_"))
+async def user_actions_menu(callback: CallbackQuery):
+    tg_id = int(callback.data.split("_")[1])
+
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.tg_id == tg_id))
+        user = result.scalar_one_or_none()
+
+        if not user:
+            await callback.answer("Пользователь не найден")
+            return
+
+        text = f"""🔧 <b>Действия с водителем</b>
+
+👤 {user.full_name}
+🚗 {user.car_number}
+
+Выберите действие:"""
+
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="🚫 Забанить", callback_data=f"ban_{tg_id}")],
+            [InlineKeyboardButton(text="✅ Разбанить", callback_data=f"unban_{tg_id}")],
+            [InlineKeyboardButton(text="🗑 Удалить водителя", callback_data=f"delete_user_{tg_id}")],
+            [InlineKeyboardButton(text="🔙 Назад к карточке", callback_data=f"driver_{tg_id}")]
+        ])
+
+        await callback.message.edit_text(text, reply_markup=kb)
+        await callback.answer()
