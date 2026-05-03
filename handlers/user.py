@@ -15,6 +15,18 @@ from calculations import calculate_shift
 user_router = Router()
 user_router.active_shifts = {}
 
+# ====================== ПРОВЕРКА СУЩЕСТВОВАНИЯ ПОЛЬЗОВАТЕЛЯ ======================
+async def is_user_exists(user_id: int, message: Message = None) -> bool:
+    """Проверяет, существует ли пользователь в базе"""
+    async with AsyncSessionLocal() as session:
+        result = await session.execute(select(User).where(User.tg_id == user_id))
+        user = result.scalar_one_or_none()
+        if not user:
+            if message:
+                await message.answer("🗑 Вы были удалены из системы.\nДля повторной регистрации напишите /start")
+            return False
+    return True
+
 
 # ====================== ПРОВЕРКА БАНА ======================
 async def is_banned(user_id: int, message: Message) -> bool:
@@ -198,6 +210,8 @@ async def ban_user(callback: CallbackQuery):
 
 @user_router.message(F.text == "🚑 Начать смену")
 async def start_shift(message: Message, state: FSMContext):
+    if not await is_user_exists(message.from_user.id, message):
+        return
     if await is_banned(message.from_user.id, message):
         return
 
@@ -223,6 +237,8 @@ async def start_shift(message: Message, state: FSMContext):
 
 @user_router.message(F.text == "⛽ Заправка")
 async def refuel(message: Message, state: FSMContext):
+    if not await is_user_exists(message.from_user.id, message):
+        return
     if await is_banned(message.from_user.id, message):
         return
 
@@ -238,6 +254,8 @@ async def refuel(message: Message, state: FSMContext):
 
 @user_router.message(F.text == "🏁 Завершить смену")
 async def end_shift(message: Message, state: FSMContext):
+    if not await is_user_exists(message.from_user.id, message):
+        return
     if await is_banned(message.from_user.id, message):
         return
 
@@ -266,6 +284,8 @@ async def end_shift(message: Message, state: FSMContext):
 # ==================== МОЯ ИСТОРИЯ ====================
 @user_router.message(F.text == "📖 Моя история")
 async def my_history(message: Message):
+    if not await is_user_exists(message.from_user.id, message):
+        return
     if await is_banned(message.from_user.id, message):
         return
 
@@ -463,6 +483,8 @@ async def history_callback(callback: CallbackQuery):
 # ==================== ЛИЧНАЯ СТАТИСТИКА ВОДИТЕЛЯ ====================
 @user_router.message(F.text == "📊 Статистика")
 async def driver_statistics(message: Message):
+    if not await is_user_exists(message.from_user.id, message):
+        return
     if await is_banned(message.from_user.id, message):
         return
 
@@ -569,6 +591,8 @@ async def history_current_month(callback: CallbackQuery):
 # ==================== НАСТРОЙКИ ====================
 @user_router.message(F.text == "⚙️ Настройки")
 async def settings_menu(message: Message):
+    if not await is_user_exists(message.from_user.id, message):
+        return
     if await is_banned(message.from_user.id, message):
         return
 
