@@ -384,7 +384,7 @@ async def process_delete_shifts(message: Message, state: FSMContext):
     try:
         await message.bot.send_message(
             tg_id,
-            "🗑 Администратор удалил одну или несколько ваших смен."
+            "🗑 Механик удалил одну или несколько ваших смен."
         )
     except:
         pass  # если водитель заблокировал бота — не страшно
