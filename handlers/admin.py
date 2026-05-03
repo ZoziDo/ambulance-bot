@@ -345,7 +345,7 @@ async def back_to_drivers(callback: CallbackQuery):
     
     await callback.answer()              
 
-# ==================== УДАЛЕНИЕ СМЕН ПО НОМЕРАМ ====================
+# ==================== ОБРАБОТКА УДАЛЕНИЯ СМЕН ====================
 @admin_router.message(F.text.regexp(r"^\d+(,\s*\d+)*$"))
 async def process_delete_shifts(message: Message, state: FSMContext):
     data = await state.get_data()
@@ -353,14 +353,14 @@ async def process_delete_shifts(message: Message, state: FSMContext):
     shifts_list = data.get("shifts")
 
     if not tg_id or not shifts_list:
-        await message.answer("Сессия устарела. Пожалуйста, откройте «Все смены» заново.")
+        await message.answer("Сессия устарела. Откройте «Все смены» заново.")
         await state.clear()
         return
 
     try:
         indices = [int(x.strip()) for x in message.text.split(",")]
     except ValueError:
-        await message.answer("❌ Неверный формат. Введите номера смен через запятую.\nПример: 1,3,5")
+        await message.answer("❌ Неверный формат. Введите номера смен через запятую.\nПример: 1, 3")
         return
 
     deleted_count = 0
@@ -377,8 +377,17 @@ async def process_delete_shifts(message: Message, state: FSMContext):
 
     await state.clear()
 
-    # Переоткрываем список всех смен
+    # Обновляем список смен у админа
     await reopen_all_shifts(message, tg_id)
+
+    # Уведомляем водителя, что смена была удалена
+    try:
+        await message.bot.send_message(
+            tg_id,
+            "🗑 Администратор удалил одну или несколько ваших смен."
+        )
+    except:
+        pass  # если водитель заблокировал бота — не страшно
 
 
 # ==================== ПОВТОРНОЕ ОТКРЫТИЕ СПИСКА СМЕН ====================
