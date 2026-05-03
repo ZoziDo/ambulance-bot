@@ -72,22 +72,13 @@ async def driver_detail(callback: CallbackQuery):
             consumed_liters = round(s.calculated_consumption * s.distance / 100, 2) if s.distance else 0
             text += f"• {s.date.strftime('%d.%m.%Y')} | {s.distance} км | {consumed_liters} л | {s.calculated_consumption} л/100км\n"
 
-        # Умная клавиатура
-        kb_list = [
+        kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="📊 Статистика", callback_data=f"stat_{tg_id}")],
             [InlineKeyboardButton(text="📅 Смены за месяц", callback_data=f"month_shifts_{tg_id}")],
             [InlineKeyboardButton(text="📋 Все смены", callback_data=f"all_shifts_{tg_id}")],
-        ]
-
-        if user.banned:
-            kb_list.append([InlineKeyboardButton(text="✅ Разбанить", callback_data=f"unban_{tg_id}")])
-        else:
-            kb_list.append([InlineKeyboardButton(text="🚫 Забанить", callback_data=f"ban_{tg_id}")])
-
-        kb_list.append([InlineKeyboardButton(text="🗑 Удалить водителя", callback_data=f"delete_user_{tg_id}")])
-        kb_list.append([InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")])
-
-        kb = InlineKeyboardMarkup(inline_keyboard=kb_list)
+            [InlineKeyboardButton(text="🔧 Действия с водителем", callback_data=f"actions_{tg_id}")],
+            [InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")]
+        ])
 
         await callback.message.edit_text(text, reply_markup=kb)
         await callback.answer()
@@ -493,11 +484,9 @@ async def unban_user(callback: CallbackQuery):
         )
         await session.commit()
 
-    # Только обновляем текст карточки
     await callback.message.edit_text("✅ Водитель разбанен.")
-    await callback.answer("Разбанен", show_alert=True)
+    await callback.answer()  # убрали show_alert
 
-    # Уведомляем самого водителя
     try:
         await callback.bot.send_message(
             tg_id, 
