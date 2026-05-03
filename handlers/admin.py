@@ -495,13 +495,14 @@ async def unban_user(callback: CallbackQuery):
     except:
         pass
 
-# ==================== УДАЛЕНИЕ ВОДИТЕЛЯ ====================
+# ==================== ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ ====================
 @admin_router.callback_query(F.data.startswith("delete_user_"))
 async def confirm_delete_user(callback: CallbackQuery):
     tg_id = int(callback.data.split("_")[2])
 
     async with AsyncSessionLocal() as session:
-        user = await session.get(User, tg_id)
+        result = await session.execute(select(User).where(User.tg_id == tg_id))
+        user = result.scalar_one_or_none()
 
         if not user:
             await callback.answer("Пользователь не найден")
@@ -514,7 +515,7 @@ async def confirm_delete_user(callback: CallbackQuery):
 👤 {user.full_name}
 🚗 {user.car_number or '—'}
 
-Все его смены тоже будут удалены навсегда."""
+Все его смены тоже будут удалены."""
 
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="✅ Да, удалить", callback_data=f"confirm_delete_{tg_id}")],
@@ -525,6 +526,7 @@ async def confirm_delete_user(callback: CallbackQuery):
         await callback.answer()
 
 
+# ==================== УДАЛЕНИЕ ВОДИТЕЛЯ ====================
 @admin_router.callback_query(F.data.startswith("confirm_delete_"))
 async def delete_user(callback: CallbackQuery):
     tg_id = int(callback.data.split("_")[2])
@@ -537,7 +539,10 @@ async def delete_user(callback: CallbackQuery):
         await session.commit()
 
     try:
-        await callback.bot.send_message(tg_id, "🗑 Вы были полностью удалены из системы бота.")
+        await callback.bot.send_message(
+            tg_id, 
+            "🗑 Вы были полностью удалены из системы бота."
+        )
     except:
         pass
 
