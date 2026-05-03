@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
 from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import re
 
 from keyboards.reply import main_menu, admin_menu
@@ -17,22 +17,37 @@ user_router = Router()
 user_router.active_shifts = {}
 
 
-# ====================== ПРОВЕРКА ГОСНОМЕРА ======================
+# ====================== ПРОВЕРКИ ======================
+def is_valid_full_name(full_name: str) -> bool:
+    """Проверка Ф.И.О — только буквы, пробелы и дефис"""
+    if not full_name or len(full_name.strip()) < 5:
+        return False
+    
+    # Разрешаем только русские буквы, пробелы и дефис
+    pattern = r'^[А-ЯЁа-яё\s\-]+$'
+    if not re.match(pattern, full_name):
+        return False
+    
+    # Должно быть минимум 2 слова
+    words = full_name.strip().split()
+    if len(words) < 2:
+        return False
+    
+    return True
+
+
 def is_valid_car_number(car_number: str) -> bool:
     """Строгая проверка российского госномера"""
     if not car_number:
         return False
     
-    # Приводим к верхнему регистру и убираем лишние символы
     num = car_number.strip().upper().replace(" ", "").replace("-", "").replace(".", "")
     
-    # Формат: 1 буква + 3 цифры + 2 буквы + 2 или 3 цифры
     pattern = r'^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$'
     
     if not re.match(pattern, num):
         return False
     
-    # Разрешённые буквы
     allowed = set('АВЕКМНОРСТУХ')
     if not all(c in allowed or c.isdigit() for c in num):
         return False
@@ -40,9 +55,8 @@ def is_valid_car_number(car_number: str) -> bool:
     return True
 
 
-# ====================== ПРОВЕРКА СУЩЕСТВОВАНИЯ ПОЛЬЗОВАТЕЛЯ ======================
+# ====================== ПРОВЕРКА СУЩЕСТВОВАНИЯ ======================
 async def is_user_exists(user_id: int, message: Message = None) -> bool:
-    """Проверяет, существует ли пользователь в базе"""
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.tg_id == user_id))
         user = result.scalar_one_or_none()
@@ -55,7 +69,6 @@ async def is_user_exists(user_id: int, message: Message = None) -> bool:
 
 # ====================== ПРОВЕРКА БАНА ======================
 async def is_banned(user_id: int, message: Message) -> bool:
-    """Возвращает True, если пользователь забанен"""
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.tg_id == user_id))
         user = result.scalar_one_or_none()
@@ -65,29 +78,34 @@ async def is_banned(user_id: int, message: Message) -> bool:
     return False
 
 
+# ====================== СТАРТ ======================
 @user_router.message(CommandStart())
 async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     if await is_banned(message.from_user.id, message):
         return
+
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(User).where(User.tg_id == message.from_user.id))
         user = result.scalar_one_or_none()
+
         if user and user.approved and user.full_name and user.car_number:
             if message.from_user.id in ADMIN_IDS or user.role == "admin":
                 await message.answer("👷 <b>Админ-панель</b>\nДобро пожаловать!", reply_markup=admin_menu())
             else:
                 await message.answer("🚑 <b>Бот путевых листов скорой</b>\nДобро пожаловать!", reply_markup=main_menu())
             return
-        # Регистрация
+
         if not user:
             user = User(tg_id=message.from_user.id, approved=False, banned=False, role="driver")
             session.add(user)
             await session.commit()
+
         if not user.full_name or not user.car_number:
             await state.set_state(RegistrationStates.waiting_full_name)
             await message.answer("👤 Введите ваше Ф.И.О полностью:")
             return
+
         kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="✅ Я водитель скорой", callback_data="send_request")]])
         await message.answer("✅ Данные сохранены.\nНажмите кнопку для отправки заявки:", reply_markup=kb)
 
@@ -98,11 +116,19 @@ async def process_full_name(message: Message, state: FSMContext):
     if await is_banned(message.from_user.id, message):
         await state.clear()
         return
-  
+
     full_name = message.text.strip()
-    if len(full_name) < 5:
-        await message.answer("❌ Пожалуйста, введите Ф.И.О полностью (минимум 5 символов):")
+
+    if not is_valid_full_name(full_name):
+        await message.answer(
+            "❌ Неверный формат Ф.И.О!\n\n"
+            "Введите полностью, например:\n"
+            "Иванов Иван Иванович\n"
+            "Разгоняев Павел Сергеевич\n\n"
+            "Только русские буквы, пробелы и дефис."
+        )
         return
+
     await state.update_data(full_name=full_name)
     await state.set_state(RegistrationStates.waiting_car_number)
     await message.answer("🚗 Введите номер машины:\nПример: Н337НН142 или А721АА142")
@@ -123,8 +149,7 @@ async def process_car_number(message: Message, state: FSMContext):
             "• A123BC77\n"
             "• A777AA142\n"
             "• B456BE99\n\n"
-            "Разрешены только буквы: **А В Е К М Н О Р С Т У Х**\n"
-            "Попробуйте ещё раз:"
+            "Разрешены буквы: А В Е К М Н О Р С Т У Х"
         )
         return
 
@@ -138,7 +163,6 @@ async def process_car_number(message: Message, state: FSMContext):
         await message.answer("👤 Введите ваше Ф.И.О полностью:")
         return
 
-    # Сохранение
     async with AsyncSessionLocal() as session:
         await session.execute(
             update(User)
