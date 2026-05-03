@@ -1,6 +1,6 @@
 from aiogram import Router, F
 from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
-from sqlalchemy import select, func, desc
+from sqlalchemy import select, func, desc, delete, update   # ← добавь update
 from datetime import date, timedelta
 import pandas as pd
 from datetime import datetime
@@ -73,13 +73,23 @@ async def driver_detail(callback: CallbackQuery):
             consumed_liters = round(s.calculated_consumption * s.distance / 100, 2) if s.distance else 0
             text += f"• {s.date.strftime('%d.%m.%Y')} | {s.distance} км | {consumed_liters} л | {s.calculated_consumption} л/100км\n"
 
-        kb = InlineKeyboardMarkup(inline_keyboard=[
+        # Умная клавиатура
+        buttons = [
             [InlineKeyboardButton(text="📊 Статистика водителя", callback_data=f"stat_{tg_id}")],
             [InlineKeyboardButton(text="📅 Смены за текущий месяц", callback_data=f"month_shifts_{tg_id}")],
             [InlineKeyboardButton(text="📋 Все смены", callback_data=f"all_shifts_{tg_id}")],
-            [InlineKeyboardButton(text="🔧 Действия с водителем", callback_data=f"actions_{tg_id}")],   # ← Новая кнопка
-            [InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")]
-        ])
+        ]
+
+        # Кнопки управления доступом
+        if user.banned:
+            buttons.append([InlineKeyboardButton(text="✅ Разбанить", callback_data=f"unban_{tg_id}")])
+        else:
+            buttons.append([InlineKeyboardButton(text="🚫 Забанить", callback_data=f"ban_{tg_id}")])
+
+        buttons.append([InlineKeyboardButton(text="🗑 Удалить водителя", callback_data=f"delete_user_{tg_id}")])
+        buttons.append([InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")])
+
+        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
         await callback.message.edit_text(text, reply_markup=kb)
         await callback.answer()
