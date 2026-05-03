@@ -23,7 +23,7 @@ class User(Base):
 class Shift(Base):
     __tablename__ = "shifts"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)  # ← добавь autoincrement=True
     user_id = Column(BigInteger, ForeignKey("users.tg_id"), nullable=False)  # лучше tg_id
     date = Column(Date, nullable=False)
     start_time = Column(DateTime, default=datetime.utcnow)
