@@ -471,3 +471,20 @@ async def user_actions_menu(callback: CallbackQuery):
 
         await callback.message.edit_text(text, reply_markup=kb)
         await callback.answer()
+
+# ==================== РАЗБАНИТЬ ВОДИТЕЛЯ ====================
+@admin_router.callback_query(F.data.startswith("unban_"))
+async def unban_user(callback: CallbackQuery):
+    tg_id = int(callback.data.split("_")[1])
+
+    async with AsyncSessionLocal() as session:
+        await session.execute(
+            update(User)
+            .where(User.tg_id == tg_id)
+            .values(banned=False, approved=True)
+        )
+        await session.commit()
+
+    await callback.message.edit_text("✅ Водитель успешно разбанен.")
+    await callback.bot.send_message(tg_id, "🎉 Вы были разблокированы!\nТеперь можете пользоваться ботом.")
+    await callback.answer("Разбанен", show_alert=True)
