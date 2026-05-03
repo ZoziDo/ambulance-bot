@@ -52,7 +52,6 @@ async def driver_detail(callback: CallbackQuery):
             await callback.answer("Пользователь не найден")
             return
 
-        # Последние 5 смен
         shifts_result = await session.execute(
             select(Shift)
             .where(Shift.user_id == tg_id)
@@ -74,22 +73,21 @@ async def driver_detail(callback: CallbackQuery):
             text += f"• {s.date.strftime('%d.%m.%Y')} | {s.distance} км | {consumed_liters} л | {s.calculated_consumption} л/100км\n"
 
         # Умная клавиатура
-        buttons = [
-            [InlineKeyboardButton(text="📊 Статистика водителя", callback_data=f"stat_{tg_id}")],
-            [InlineKeyboardButton(text="📅 Смены за текущий месяц", callback_data=f"month_shifts_{tg_id}")],
+        kb_list = [
+            [InlineKeyboardButton(text="📊 Статистика", callback_data=f"stat_{tg_id}")],
+            [InlineKeyboardButton(text="📅 Смены за месяц", callback_data=f"month_shifts_{tg_id}")],
             [InlineKeyboardButton(text="📋 Все смены", callback_data=f"all_shifts_{tg_id}")],
         ]
 
-        # Кнопки управления доступом
         if user.banned:
-            buttons.append([InlineKeyboardButton(text="✅ Разбанить", callback_data=f"unban_{tg_id}")])
+            kb_list.append([InlineKeyboardButton(text="✅ Разбанить", callback_data=f"unban_{tg_id}")])
         else:
-            buttons.append([InlineKeyboardButton(text="🚫 Забанить", callback_data=f"ban_{tg_id}")])
+            kb_list.append([InlineKeyboardButton(text="🚫 Забанить", callback_data=f"ban_{tg_id}")])
 
-        buttons.append([InlineKeyboardButton(text="🗑 Удалить водителя", callback_data=f"delete_user_{tg_id}")])
-        buttons.append([InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")])
+        kb_list.append([InlineKeyboardButton(text="🗑 Удалить водителя", callback_data=f"delete_user_{tg_id}")])
+        kb_list.append([InlineKeyboardButton(text="🔙 Назад к списку", callback_data="back_to_drivers")])
 
-        kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+        kb = InlineKeyboardMarkup(inline_keyboard=kb_list)
 
         await callback.message.edit_text(text, reply_markup=kb)
         await callback.answer()
@@ -495,6 +493,15 @@ async def unban_user(callback: CallbackQuery):
         )
         await session.commit()
 
-    await callback.message.edit_text("✅ Водитель успешно разбанен.")
-    await callback.bot.send_message(tg_id, "🎉 Вы были разблокированы!\nТеперь можете пользоваться ботом.")
+    # Только обновляем текст карточки
+    await callback.message.edit_text("✅ Водитель разбанен.")
     await callback.answer("Разбанен", show_alert=True)
+
+    # Уведомляем самого водителя
+    try:
+        await callback.bot.send_message(
+            tg_id, 
+            "🎉 Вы были разблокированы!\nТеперь можете пользоваться ботом."
+        )
+    except:
+        pass
